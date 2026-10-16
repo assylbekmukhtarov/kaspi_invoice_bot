@@ -20,6 +20,7 @@ class Settings:
     monitor_chat_id: str | None = None
     monitor_interval_seconds: int = 300
     monitor_down_interval_seconds: int = 1200
+    monitor_ssl_warn_days: int = 14
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -32,4 +33,5 @@ class Settings:
             monitor_chat_id=os.getenv("MONITOR_CHAT_ID") or None,
             monitor_interval_seconds=int(os.getenv("MONITOR_INTERVAL_SECONDS", "300")),
             monitor_down_interval_seconds=int(os.getenv("MONITOR_DOWN_INTERVAL_SECONDS", "1200")),
+            monitor_ssl_warn_days=int(os.getenv("MONITOR_SSL_WARN_DAYS", "14")),
         )
