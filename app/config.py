@@ -16,6 +16,10 @@ class Settings:
     kaspi_enable: bool = False
     kaspi_login: str | None = None
     kaspi_password: str | None = None
+    monitor_url: str | None = None
+    monitor_chat_id: str | None = None
+    monitor_interval_seconds: int = 300
+    monitor_down_interval_seconds: int = 1200
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -24,4 +28,8 @@ class Settings:
             kaspi_enable=os.getenv("KASPI_ENABLE", "no").lower() in ("1","true","yes","y"),
             kaspi_login=os.getenv("KASPI_LOGIN") or None,
             kaspi_password=os.getenv("KASPI_PASSWORD") or None,
+            monitor_url=os.getenv("MONITOR_URL") or None,
+            monitor_chat_id=os.getenv("MONITOR_CHAT_ID") or None,
+            monitor_interval_seconds=int(os.getenv("MONITOR_INTERVAL_SECONDS", "300")),
+            monitor_down_interval_seconds=int(os.getenv("MONITOR_DOWN_INTERVAL_SECONDS", "1200")),
         )
