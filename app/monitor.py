@@ -73,15 +73,23 @@ async def run() -> None:
     url = settings.monitor_url
     ok_interval = settings.monitor_interval_seconds
     down_interval = settings.monitor_down_interval_seconds
-    log.info("Мониторинг %s: каждые %s сек, при падении — каждые %s сек", url, ok_interval, down_interval)
+    confirm_seconds = settings.monitor_confirm_seconds
+    retry_interval = settings.monitor_retry_seconds
+    log.info(
+        "Мониторинг %s: каждые %s сек, алерт если недоступен дольше %s сек (перепроверка каждые %s сек), "
+        "после алерта — каждые %s сек",
+        url, ok_interval, confirm_seconds, retry_interval, down_interval,
+    )
 
     parts = urlsplit(url)
     ssl_host = parts.hostname if parts.scheme == "https" else None
     ssl_warn_days = settings.monitor_ssl_warn_days
     next_ssl_check = 0.0
 
-    was_down = False
+    # Время первой неудачной проверки в текущей серии; None — сайт доступен
     down_since: float | None = None
+    # Алерт "упал" уже отправлен (сбой длится дольше confirm_seconds)
+    alerted = False
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -90,28 +98,36 @@ async def run() -> None:
                 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
                 if not ok:
-                    if not was_down:
+                    if down_since is None:
                         down_since = time.time()
-                        log.warning("%s недоступен: %s", url, detail)
-                        await send_telegram(
-                            session, settings.bot_token, settings.monitor_chat_id,
-                            f"АгроскопПро упал\n{detail}\nВремя: {now}",
-                        )
-                    else:
+                    down_for = time.time() - down_since
+                    if alerted:
                         log.warning("%s всё ещё недоступен: %s", url, detail)
-                    was_down = True
-                else:
-                    if was_down:
-                        downtime_min = round((time.time() - (down_since or time.time())) / 60, 1)
-                        log.info("%s снова доступен (%s)", url, detail)
+                    elif down_for >= confirm_seconds:
+                        log.warning("%s недоступен %.0f сек, отправляю алерт: %s", url, down_for, detail)
                         await send_telegram(
                             session, settings.bot_token, settings.monitor_chat_id,
-                            f"АгроскопПро снова доступен\n{detail}\nПростой: ~{downtime_min} мин\nВремя: {now}",
+                            f"АгроскопПро упал\n{detail}\nНе отвечает ~{round(down_for / 60, 1)} мин\nВремя: {now}",
                         )
+                        alerted = True
+                    else:
+                        log.warning("%s недоступен %.0f сек (%s), жду подтверждения", url, down_for, detail)
+                else:
+                    if down_since is not None:
+                        down_for = time.time() - down_since
+                        if alerted:
+                            log.info("%s снова доступен (%s)", url, detail)
+                            await send_telegram(
+                                session, settings.bot_token, settings.monitor_chat_id,
+                                f"АгроскопПро снова доступен\n{detail}\nПростой: ~{round(down_for / 60, 1)} мин\nВремя: {now}",
+                            )
+                        else:
+                            # Короткий сбой (например, обновление сайта) — без сообщения в Telegram
+                            log.info("%s снова доступен после короткого сбоя ~%.0f сек, без алерта", url, down_for)
                     else:
                         log.info("%s доступен: %s", url, detail)
-                    was_down = False
                     down_since = None
+                    alerted = False
             except Exception:
                 log.exception("Непредвиденная ошибка в цикле мониторинга")
 
@@ -131,7 +147,13 @@ async def run() -> None:
                     # Не удалось проверить (сайт недоступен и т.п.) — повторим на следующей итерации
                     log.warning("Не удалось проверить SSL %s: %s: %s", ssl_host, type(e).__name__, e)
 
-            await asyncio.sleep(down_interval if was_down else ok_interval)
+            if alerted:
+                delay = down_interval
+            elif down_since is not None:
+                delay = retry_interval
+            else:
+                delay = ok_interval
+            await asyncio.sleep(delay)
 
 
 if __name__ == "__main__":

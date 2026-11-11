@@ -21,6 +21,8 @@ class Settings:
     monitor_interval_seconds: int = 300
     monitor_down_interval_seconds: int = 1200
     monitor_ssl_warn_days: int = 14
+    monitor_confirm_seconds: int = 300
+    monitor_retry_seconds: int = 30
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -34,4 +36,6 @@ class Settings:
             monitor_interval_seconds=int(os.getenv("MONITOR_INTERVAL_SECONDS", "300")),
             monitor_down_interval_seconds=int(os.getenv("MONITOR_DOWN_INTERVAL_SECONDS", "1200")),
             monitor_ssl_warn_days=int(os.getenv("MONITOR_SSL_WARN_DAYS", "14")),
+            monitor_confirm_seconds=int(os.getenv("MONITOR_CONFIRM_SECONDS", "300")),
+            monitor_retry_seconds=int(os.getenv("MONITOR_RETRY_SECONDS", "30")),
         )
